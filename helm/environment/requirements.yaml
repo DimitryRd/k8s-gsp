@@ -1,0 +1,7 @@
+dependencies:
+  - name: cluster
+    version: 0.0.9
+    repository: http://helm.dataart.ops
+ - name: zipkin
+    version: 0.0.1
+    repository: http://helm.dataart.ops

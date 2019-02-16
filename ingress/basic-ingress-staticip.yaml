@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: basic-ingress
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: web-static-ip
+    #nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  backend:
+    serviceName: nginx-svc
+    servicePort: 8080
+  #  rules:
+  #- host: mysite.com
+  #  http:
+  #    paths:
+  #    - backend:
+  #        serviceName: nginx-svc
+  #        servicePort: 8080

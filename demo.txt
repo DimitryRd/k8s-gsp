@@ -1,0 +1,598 @@
+# kubectl Cheat Sheet
+https://kubernetes.io/docs/reference/kubectl/cheatsheet/
+# Kubernetes recipes: Maintenance and troubleshooting
+https://www.oreilly.com/ideas/kubernetes-recipes-maintenance-and-troubleshooting
+
+# Authorize gcloud to access the Cloud Platform with Google user credentials
+#gcloud auth login
+gcloud auth application-default login
+# gcloud auth configure-docker
+# Lists all properties in your active configuration
+gcloud config list project
+# Set the project of interest
+# gcloud config set project $extreme-signer-231907
+# Install kubectl tool
+gcloud components install alpha
+gcloud components install beta
+gcloud components install kubectl
+
+### Deploy Kubernetes via schell script
+cd in YOUR-WORKDIT
+export KUBERNETES_PROVIDER=gce; curl -sS https://get.k8s.io | bash
+# OR
+export KUBERNETES_PROVIDER=gce; wget -q -O - https://get.k8s.io | bash
+# Possible values for YOUR_PROVIDER include: gce, gke, aws, azure, vagrant, vsphere, rackspace
+cd kubernetes/cluster/
+./kube-up.sh
+# Displays all Google Compute Engine instances in a project.
+gcloud compute instances list
+# Check pods in kubernetes cluster
+kubectl  get pods --all-namespaces
+# Delete Kubernetes cluster
+cd kubernetes/cluster/
+./kube-down.sh
+
+### Deploy Kubernetes via KOPS
+# Install kops
+# Macos
+brew update && brew install kops
+brew install kops
+# LInux
+curl -LO https://github.com/kubernetes/kops/releases/download/$(curl -s https://api.github.com/repos/kubernetes/kops/releases/latest | grep tag_name | cut -d '"' -f 4)/kops-linux-amd64
+chmod +x kops-linux-amd64
+sudo mv kops-linux-amd64 /usr/local/bin/kops
+# Creating a state store
+export KOPS_GS="extreme-signer-231907-gcp-demo"
+gsutil mb gs://${KOPS_GS}
+# generate ssh key
+cd cd ~/.ssh
+mkdir k8s-demo
+cd k8s-demo
+ssh-keygen -t rsa -f k8demo
+
+cd kops-demo
+PROJECT=`gcloud config get-value project`
+export KOPS_FEATURE_FLAGS=AlphaAllowGCE # to unlock the GCE features
+# Create cluster
+bash create_cluster.sh
+# or
+# kops create cluster demo.k8s.local --zones europe-west1-d --state gs://${KOPS_GS} --ssh-public-key=~/.ssh/k8s-demo/k8demo.pub --project=${PROJECT}
+# Apply state
+kops update cluster demo.k8s.local --state gs://${KOPS_GS} --yes
+# Get clusters
+kops get cluster --state gs://${KOPS_GS}
+# Displays all Google Compute Engine instances in a project.
+gcloud compute instances list
+# Validate cluster
+kops validate cluster --state gs://${KOPS_GS} --name demo.k8s.local
+# Get clusters
+kops get clusters --state gs://${KOPS_GS}
+# Connect to master node
+gcloud compute --project ${PROJECT} ssh --zone "europe-west1-d" "master-ID"
+# example
+# gcloud compute --project "extreme-signer-231907" ssh --zone "europe-west1-d" "master-europe-west1-d-slgt"
+kubectl get nodes --show-labels
+# Generate terraform scripts
+# https://github.com/kubernetes/kops/blob/master/docs/terraform.md
+bash create_cluster_terraform.sh
+# Deleting the cluster
+kops delete cluster demo.k8s.local --state gs://${KOPS_GS} --yes
+# Delete Storage bucket
+gsutil rm -r gs://${KOPS_GS}
+
+### Workshop 2
+cd workshop_2
+
+# Authorize gcloud to access the Cloud Platform with Google user credentials
+#gcloud auth login
+gcloud auth application-default login
+# gcloud auth configure-docker
+# Lists all properties in your active configuration
+gcloud config list project
+
+# Create Kubernetes cluster
+# https://cloud.google.com/kubernetes-engine/versioning-and-upgrades
+# --cluster-version=CLUSTER_VERSION
+# Checking available versions:
+# gcloud container get-server-config --zone europe-west1-d
+# --cluster-version=1.9.6-gke.1
+gcloud container clusters create "k8s-cluster"  --zone "europe-west1-d" \
+   --machine-type "custom-1-1024" --image-type "GCI" --disk-size "100" \
+   --network "default" --no-enable-cloud-logging \
+   --no-enable-cloud-monitoring --enable-autoscaling --min-nodes="2" --max-nodes="10" \
+   --enable-legacy-authorization --cluster-version=1.10
+
+# If you are using an existing Kubernetes Engine cluster or if you have created a cluster through Google Cloud  Platform Console, you need to run the following command to retrieve cluster credentials and configure kubectl command-line tool with them:
+# gcloud container clusters get-credentials k8s-cluster --zone "europe-west1-d"
+
+# Displays all Google Compute Engine instances in a project.
+gcloud compute instances list
+# List all pods in the kube-system namespace
+kubectl get pods --namespace kube-system
+# Start proxy for conneting to the Kubernetes API server:
+kubectl proxy
+# kubectl proxy --port=8001
+# Get the API versions
+curl http://localhost:8001/api/
+# Get access token
+gcloud auth application-default print-access-token
+# or
+gcloud auth application-default login
+
+# Access to Dashboard
+http://localhost:8001/ui
+
+# Resize Kubernetes cluster
+gcloud container clusters resize "k8s-cluster" --size=6 --zone europe-west1-d
+# Displays all Google Compute Engine instances in a project.
+gcloud compute instances list
+
+# Create NGINX service
+kubectl create -f nginx-service.yml
+# Deploy NGINX
+kubectl create -f nginx.yml
+# Check nginx pods
+kubectl get pods
+# Or You can see list all pods in all namespaces
+kubectl get pods --all-namespaces
+# Check Service
+kubectl get svc
+# Check nginx via curl
+curl http://{EXTERNAL-IP}
+
+# Delete NGINX
+kubectl delete -f nginx.yml
+kubectl delete -f nginx-service.yml
+# Or you can use the following command:
+kubectl delete -f nginx.yml,nginx-service.yml
+
+# Resize Kubernetes cluster
+#gcloud container clusters resize "k8s-cluster" --size=2 --zone europe-west1-d
+# Displays all Google Compute Engine instances in a project.
+#gcloud compute instances list
+
+### Blue-Green Deployment
+cd ../blue-green-deployment
+
+# Create persistent disks for nginx
+gcloud compute disks create webcontent-blue webcontent-green --zone europe-west1-d --size 1GB
+
+# Create temporary container with NGINX
+kubectl create -f ops.yaml
+# List all pods in the namespace
+kubectl get deployments
+kubectl get pods
+# Run command in existing pod (1 container case)
+kubectl exec -it ops-{CONTAINER-ID} -- bash
+# Copy files
+cp /usr/share/nginx/html/* nginx-blue/
+cp /usr/share/nginx/html/* nginx-green/
+sed -i -e 's/Welcome to nginx!/Welcome to blue nginx!/g' nginx-blue/index.html
+sed -i -e 's/Welcome to nginx!/Welcome to green nginx!/g' nginx-green/index.html
+ls /nginx-blue/index.html
+ls /nginx-green/index.html
+exit
+# Delete Deployment
+kubectl delete -f ops.yaml
+# Or you can delete deployment using the following command:
+# kubectl delete deployment ops
+# List all pods in the namespace
+kubectl get pods
+kubectl create -f service.yaml
+kubectl get svc webserver
+kubectl create -f blue.yaml
+kubectl create -f green.yaml
+kubectl get pods
+kubectl exec -it webserver-blue-{CONTAINER-ID} -- nginx -v
+# Check our blue deployment
+curl http://{EXTERNAL-IP}
+# Change from blue to green
+kubectl edit svc webserver
+# Check our green deployment
+curl http://{EXTERNAL-IP}
+# Show out deploy
+kubectl describe deployment webserver-blue
+# Deployment update
+kubectl set image deployment/webserver-blue nginx=nginx:1.13.12
+# Check out changes
+kubectl describe deployment webserver-blue
+kubectl get pods
+kubectl exec -it webserver-blue-{CONTAINER-ID} -- nginx -v
+kubectl edit svc webserver
+kubectl get pods
+kubectl scale  -f nginx.yml --replicas=10
+kubectl get pods
+gcloud compute instances list
+kubectl scale  --replicas=15 deployment/webserver-blue
+kubectl get pods |grep webserver-blue| wc -l
+gcloud compute instances list
+kubectl scale  --replicas=10 deployment/webserver-blue
+kubectl describe deployment/webserver-blue
+# Delete pods
+kubectl delete -f blue.yaml,green.yaml,service.yaml
+# Delete persistent disk
+gcloud compute disks delete webcontent-blue webcontent-green  --zone europe-west1-d
+gcloud compute disks list  --zones europe-west1-d
+
+### Postgres as Stateful service in Kubernetes and storages
+cd ../postgres-deployment
+
+# Build docker image and push on Google Registry
+docker build -t postgres-9.6 .
+docker image |grep postgres-9.6
+gcloud config list |grep project
+docker tag postgres-9.6  gcr.io/extreme-signer-231907/postgres:9.6
+docker tag postgres-9.6  gcr.io/extreme-signer-231907/postgres:9.6
+gcloud docker -- push gcr.io/extreme-signer-231907/postgres
+
+# Create persistent disk in GCP
+gcloud compute disks create postgres --zone europe-west1-d --size 1GB
+gcloud compute disks list
+kubectl create -f deployment.yml
+kubectl create -f service.yml
+kubectl get pods
+kubectl exec -it {POD-ID} -- bash
+psql
+SELECT datname,pid,state,query FROM pg_stat_activity;
+select version();
+ctrl+d
+exit
+kubectl delete -f deployment.yml
+
+kubectl create -f kubernetes-storage.yml
+kubectl create -f postgres-claim.yml
+kubectl create -f postgres-pod.yml
+kubectl get pods
+gcloud compute disks list
+kubectl exec -it {POD-ID} -- bash
+psql
+SELECT datname,pid,state,query FROM pg_stat_activity;
+select version();
+ctrl+d
+exit
+# Get persistentvolumeclaims
+kubectl get pvc
+kubectl delete -f postgres-pod.yml
+
+kubectl create -f postgres-statefull.yml
+kubectl get pods
+gcloud compute disks list
+kubectl exec -it {POD-ID} -- bash
+kubectl delete -f postgres-statefull.yml
+kubectl delete -f service.yml
+
+# Delete all persistent volumes
+kubectl delete pvc --all
+
+kubectl create -f mysql-services.yaml
+kubectl create -f mysql-configmap.yaml
+kubectl create -f mysql-statefulset.yaml
+kubectl get pods
+gcloud compute disks list
+kubectl exec -it mysql-0 -- bash
+mysql -e "SHOW SLAVE HOSTS;"
+kubectl exec -it mysql-1 -- bash
+mysql -e "SHOW SLAVE STATUS\G;"
+
+# Delete persistent disk in GCP
+gcloud compute disks delete postgres  --zone europe-west1-d
+# Delete mysql service, deployment
+kubectl delete -f mysql-services.yaml
+kubectl delete -f mysql-configmap.yaml
+kubectl delete -f mysql-statefulset.yaml
+
+# Delete all persistent volumes
+kubectl delete pvc --all
+kubectl get pods
+kubectl get svc
+
+### StatefulSets and DaemonSets
+cd ../StatefulSets_and_DaemonSets
+kubectl create -f nginx-stateful.yaml
+kubectl get pods -l app=nginx
+# or
+# kubectl get pods -w -l app=nginx
+kubectl get service nginx
+kubectl get statefulset web
+for i in 0 1; do kubectl exec web-$i -- sh -c 'hostname'; done
+# Scaling Up
+kubectl scale sts web --replicas=5
+kubectl get pods -l app=nginx
+# Scaling Down
+kubectl patch sts web -p '{"spec":{"replicas":3}}'
+kubectl get pods -l app=nginx
+# Updating StatefulSets
+# kubectl patch statefulset web -p '{"spec":{"updateStrategy":{"type":"RollingUpdate"}}}'
+kubectl patch statefulset web --type='json' -p='[{"op": "replace", "path": "/spec/template/spec/containers/0/image", "value":"gcr.io/google_containers/nginx-slim:0.27"}]'
+kubectl get po -l app=nginx
+# Check image version
+for p in 0 1 2; do kubectl get po web-$p --template '{{range $i, $c := .spec.containers}}{{$c.image}}{{end}}'; echo; done
+
+# Delete StatefulSets
+# StatefulSet supports both Non-Cascading and Cascading deletion. In a Non-Cascading Delete, the StatefulSet’s Pods are not deleted when the StatefulSet is deleted. In a Cascading Delete, both the StatefulSet and its Pods are deleted.
+kubectl delete statefulset web --cascade=false
+# or
+kubectl delete -f nginx-stateful.yaml
+# Daemonset
+kubectl create -f nginx-daemonsets.yaml
+    kubectl  get pods -l app=nginx -o wide
+kubectl delete -f nginx-daemonsets.yaml
+
+### Scailing
+cd ../scailing
+
+# Resize Kubernetes cluster
+gcloud container clusters resize "k8s-cluster" --size=5 --zone europe-west1-d
+
+kubectl create -f nginx.yml
+kubectl get pods
+kubectl scale deployment webserver --replicas=10
+kubectl get pods
+gcloud compute instances list
+kubectl delete -f nginx.yml
+
+# Install Heapster
+kubectl delete -f heapster/deploy/kube-config/influxdb/
+kubectl create -f heapster/deploy/kube-config/influxdb/
+kubectl create -f heapster/deploy/kube-config/rbac/heapster-rbac.yaml
+
+kubectl create -f nginx.yml
+kubectl create -f nginx-service.yml
+kubectl get pods
+#kubectl autoscale deployment webserver --min=10 --max=15 --cpu-percent=80
+kubectl autoscale deployment webserver --min=1 --max=10 --cpu-percent=1
+
+# hey is a tiny program that sends some load to a web application.
+# https://github.com/rakyll/hey
+# Install hey for load generator
+go get github.com/rakyll/hey
+/root/go/bin/hey -n 100000 -c 1000 http://${APP_ENDPOINT}
+# https://blog.docker.com/2016/09/docker-golang/
+docker pull rcmorano/docker-hey:latest
+docker run -it rcmorano/docker-hey -n 20000 -c 500 http://${APP_ENDPOINT}
+    # APP_ENDPOINT - sample-metric-app
+
+# Or you can use ab utils
+apt-get install -y apache2-utils
+ab -k -c 350 -n 20000 http://${APP_ENDPOINT}
+
+kubectl get hpa
+kubectl get pods
+kubectl delete deployment webserver
+kubectl delete hpa webserver
+kubectl delete -f nginx-service.yml
+
+cd qps/
+cd kubia-qps
+docker.sh
+kubectl create -f qps-deployment.yaml
+kubectl expose deployment qps --port=80 --target-port=8080
+kubectl create -f qps-autoscaler.yaml
+kubectl run -it --rm --restart=Never loadgenerator --image=busybox -- sh -c "while true; do wget -O - -q http://qps.default; done"
+kubectl get hpa
+watch kubectl describe hpa,deployment
+# or
+# watch kubectl describe hpa,deployment
+# Delete services, deployments
+kubectl delete -f qps-deployment.yaml
+kubectl delete -f qps-autoscaler.yaml
+kubectl delete svc qps
+
+cd ..
+
+kubectl delete -f heapster/deploy/kube-config/influxdb/
+kubectl delete -f heapster/deploy/kube-config/rbac/heapster-rbac.yaml
+
+# Autoscaling With Custom Metrics (Kubernetes 1.7+)
+cd prometheus
+# Get apis
+kubectl api-versions
+# RBAC
+#kubectl create clusterrolebinding your-user-cluster-admin-binding --clusterrole=cluster-admin --user=your.google.cloud.email@example.org
+kubectl create clusterrolebinding cluster-admin-binding \
+--clusterrole cluster-admin --user $(gcloud config get-value account)
+# For example
+# kubectl create clusterrolebinding your-user-cluster-admin-binding --clusterrole=cluster-admin --user=stas.kolenkin@gmail.com
+
+
+# Create namespace
+# kubectl create namespace custom-metrics
+# Deploy metrics server
+kubectl delete -f metrics-server.yaml
+kubectl create -f metrics-server.yaml
+# Deploy A Prometheus Monitoring System
+kubectl delete -f prometheus-operator.yaml
+kubectl delete -f sample-prometheus-instance.yaml
+kubectl delete -f bundle.yaml
+kubectl create -f bundle.yaml
+kubectl create -f prometheus-operator.yaml
+kubectl create -f sample-prometheus-instance.yaml
+# Check the cluster services in order to make sure that Prometheus has been successfully deployed:
+kubectl get svc
+# Deploy A Custom API Server
+kubectl create -f custom-metrics.yaml
+# Check enabled api-versions
+kubectl api-versions
+# Get pods
+kubectl get po -n custom-metrics
+# Sample metrics application
+kubectl create -f sample-metrics-app.yaml
+# Check pods
+kubectl get pods
+# Run container with nginx and install golang
+kubectl create -f nginx.yaml
+kubectl get pods
+# List services
+kubectl get svc -o wide
+# Get custom metrics
+kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1
+kubectl get --raw /apis/custom.metrics.k8s.io/v1beta1 | jq . 2>&1 | grep http_requests -A 4
+kubectl get --raw "/apis/custom.metrics.k8s.io/v1beta1/namespaces/default/pods/*/http_requests"
+# Connect into container
+kubectl exec -it nginx-{CONTAINER-ID} sh
+# Update list of packages for apk
+apk update
+# Install golang
+apk add go git gcc libc-dev
+# Install hey for load generator
+go get github.com/rakyll/hey
+# Run hey for test
+/root/go/bin/hey -n 100000 -c 1000 http://${APP_ENDPOINT}
+exit
+watch kubectl describe hpa,deployment
+kubectl get pods
+
+kubectl delete -f bundle.yaml
+kubectl delete -f custom-metrics.yaml
+kubectl delete -f sample-metrics-app.yaml
+kubectl delete -f nginx.yaml
+kubectl delete namespace custom-metrics
+kubectl delete -f prometheus-operator.yaml
+kubectl delete -f sample-prometheus-instance.yaml
+
+
+### Secrets and ConfigMaps
+cd ../configmaps+secrets
+kubectl create -f secrets.yaml
+kubectl get secrets
+kubectl create -f es-curator-config.yaml
+kubectl get configmaps
+
+### Ingress
+# cd ../ingress
+kubectl create -f rbac.yaml
+kubectl create -f demo-ingress.yaml
+kubectl create -f ingress-nginx-svc.yaml
+kubectl create -f ingress-nginx.yaml
+kubectl create -f nginx-default-backend-svc.yaml
+kubectl create -f nginx-default-backend.yaml
+kubectl create -f demo-ingress-site.yaml
+kubectl create -f nginx-svc.yaml
+kubectl create -f nginx.yaml
+kubectl get ing
+kubectl get pods
+kubectl get svc
+kubectl get service ingress-nginx -owide
+kubectl describe service ingress-nginx
+curl -H 'Host:mysite.com' [ELB_DNS]
+# or
+curl -H 'Host:mysite.com' [NODE_IP]:[NODE_PORT]
+# delete services
+kubectl delete -f demo-ingress.yaml
+kubectl delete -f ingress-nginx-svc.yaml
+kubectl delete -f ingress-nginx.yaml
+kubectl delete -f nginx-default-backend-svc.yaml
+kubectl delete -f nginx-default-backend.yaml
+kubectl delete -f demo-ingress-site.yaml
+kubectl delete -f nginx-svc.yaml
+kubectl delete -f nginx.yaml
+
+# GKE ingress
+cd gke
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout tls.key -out tls.crt -subj "/CN=nginxsvc/O=nginxsvc"
+kubectl create secret tls tls-secret --key tls.key --cert tls.crt
+kubectl create -f http-svc.yaml
+kubectl create -f gce-ingress-controller.yaml
+kubectl get po -l name=glbc
+kubectl create -f gce-tls-ingress.yaml
+kubectl get pods
+kubectl logs l7-lb-controller-ID -c l7-lb-controller
+kubectl get ing test
+curl http://[ELB_IP] -kL
+# delete gke ingress
+kubectl delete -f gce-ingress-controller.yaml
+kubectl delete -f gce-tls-ingress.yaml
+
+# Use GKE Ingresss
+kubectl create -f nginx.yaml
+kubectl create -f nginx-svc-nodeport.yaml
+kubectl get pods
+kubectl get service nginx
+kubectl create -f basic-ingress.yaml
+kubectl get ingress basic-ingress
+curl http://[INGRESS_IP] -kL
+#  or
+curl -H "mysite.com" http://35.227.197.167  -kL
+kubectl delete -f basic-ingress.yaml
+kubectl delete -f nginx-svc-nodeport.yaml
+kubectl delete -f nginx.yaml
+
+# Ingress with static IP
+gcloud compute addresses create web-static-ip --global
+gcloud compute addresses list
+kubectl create -f basic-ingress-staticip.yaml
+kubectl get ing
+
+kubectl delete -f basic-ingress-staticip.yaml
+gcloud compute addresses delete web-static-ip --global
+
+# Basic authentication not working in GKE
+
+cd ../..
+
+# Advances sheduling
+cd affinity
+# Check labels
+kubectl get nodes --show-labels
+# Add labels on nodes
+kubectl label nodes NODE-NAME role=devops
+kubectl label nodes NODE-NAME nodetype=devops
+kubectl taint nodes NODE-NAME dedicated=devops:NoSchedule
+# Check labels
+kubectl get nodes --show-labels
+kubectl get nodes --show-labels
+kubectl create -f nginx.yaml
+kubectl get pods -o wide
+kubectl describe node NODE-NAME
+kubectl delete -f nginx.yaml
+kubectl create -f nginx-affinity.yaml
+kubectl get pods -o wide
+kubectl describe node NODE-NAME
+kubectl scale  -f nginx-affinity.yaml --replicas=6
+kubectl get pods -o wide
+kubectl describe node NODE-NAME
+kubectl delete -f nginx-affinity.yaml
+kubectl taint nodes NODE-NAME dedicated:NoSchedule-
+kubectl label nodes NODE-NAME role-
+kubectl label nodes NODE-NAME nodetype-
+# Check labels
+kubectl get nodes --show-labels
+# Pod Affinity
+# The pod affinity rule indicates that the pod can schedule onto a node only if that node has at least one already-running pod with a label that has the key "team" and value "qa".
+kubectl create -f nginx-affinity-topology.yaml
+kubectl delete -f nginx-affinity-topology.yaml
+kubectl get pods -o wide
+kubectl create -f nginx-team-qa.yaml
+# The pod webserver has the label selector team:qa under podAffinity.
+kubectl  create -f nginx-affinity-topology.yaml
+# Check pods
+kubectl get pods -o wide
+kubectl delete -f nginx-affinity-topology.yaml
+# The following steps demonstrate a simple two-pod configuration that creates pod with a label and a pod that uses an anti-affinity preferred rule to attempt to prevent scheduling with that pod.
+kubectl create -f nginx-antiaffinity-weight.yaml
+# Check pods
+kubectl get pods -o wide
+# Delete pods
+kubectl delete -f nginx-antiaffinity-weight.yaml
+kubectl delete -f nginx-team-qa.yaml
+
+# Helm,Ksonnet
+cd ../helm
+kubectl create serviceaccount --namespace kube-system tiller
+kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
+kubectl patch deploy --namespace kube-system tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
+helm init
+
+# Practical Task
+cd ../PracticalTask
+
+### port-forward
+### kubectl port-forward allows using resource name, such as a service name, to select a matching pod to port forward ### to since Kubernetes v1.10
+# kubectl port-forward redis-master-765d459796-258hz 6379:6379
+# kubectl port-forward pods/redis-master-765d459796-258hz 6379:6379
+# kubectl port-forward deployment/redis-master 6379:6379
+# kubectl port-forward rs/redis-master 6379:6379
+# kubectl port-forward svc/redis-master 6379:6379
+
+# Delete Kubernetes cluster
+gcloud container clusters delete "k8s-cluster" --zone "europe-west1-d"

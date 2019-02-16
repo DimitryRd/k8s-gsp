@@ -1,0 +1,47 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: postgres1
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: slow
+
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  template: # create pods using pod definition in this template
+    metadata:
+      labels:
+        k8s-app: postgres
+      annotations:
+        "volume.beta.kubernetes.io/storage-class": "slow"
+    spec:
+      containers:
+      - name: postgres
+        image: gcr.io/extreme-signer-231907/postgres:9.6
+        imagePullPolicy: "IfNotPresent"
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: superpostgres
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgredb
+      volumes:
+        - name: postgredb
+          persistentVolumeClaim:
+            claimName: postgres1
+

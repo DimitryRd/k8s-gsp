@@ -1,0 +1,10 @@
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: slow
+  labels:
+    volume-type: slow
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  #  zones: europe-west1-d

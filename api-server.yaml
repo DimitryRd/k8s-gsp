@@ -1,0 +1,75 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+  labels:
+    app: api
+  name: api
+  namespace: api-services
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: api
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+      - args:
+        - bash
+        - -c
+        - forever --minUptime 10000 --spinSleepTime 5000 /opt/app/index.js 2>&1
+          | tee -a /var/log/api.log
+        envFrom:
+        - configMapRef:
+            name: api-configmap
+        - secretRef:
+            name: api-secrets
+        image: REGISTRY/_api:latest
+        imagePullPolicy: IfNotPresent
+        name: api
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        resources:
+          limits:
+            cpu: 250m
+          requests:
+            cpu: 100m
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log
+          name: varlog
+      - image: docker.elastic.co/beats/filebeat:5.6.2
+        imagePullPolicy: IfNotPresent
+        name: filebeat
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/log
+          name: varlog
+        - mountPath: /usr/share/filebeat/filebeat.yml
+          name: config-files
+          readOnly: true
+          subPath: filebeat.yml
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - emptyDir: {}
+        name: varlog
+      - configMap:
+          defaultMode: 420
+          name: api-config-files
+        name: config-files

@@ -1,0 +1,4 @@
+---
+private: true
+name: private
+class: nginx-private

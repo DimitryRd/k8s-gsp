@@ -1,0 +1,61 @@
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  namespace: kube-system
+  name: ingress-nginx
+rules:
+- apiGroups: ["*"]
+  resources: ["api.secret"]
+  resourceNames: ["*"]
+  verbs: ["get", "list"]
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  namespace: default
+  name: ingress-nginx
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  resourceNames: ["*"]
+  verbs: ["get", "list"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  namespace: default
+  name: ingress-nginx
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ingress-nginx
+subjects:
+- kind: Group
+  name: system:serviceaccounts:default
+  apiGroup: rbac.authorization.k8s.io
+- kind: Group
+  name: system:authenticated
+  apiGroup: rbac.authorization.k8s.io
+- kind: Group
+  name: system:unauthenticated
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: default-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+  - kind: ServiceAccount
+    name: default
+    namespace: kube-system
+
+

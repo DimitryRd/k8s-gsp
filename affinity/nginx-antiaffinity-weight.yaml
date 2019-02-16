@@ -1,0 +1,41 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: webserver-antiaffinity
+spec:
+  replicas: 3 # tells deployment to run 1 pods matching the template
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        app: nginx
+        type: webserver
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: team
+                  operator: In
+                  values:
+                  - "qa"
+              topologyKey: kubernetes.io/hostname
+            #nodeSelector:
+            #team: qa
+        #kubernetes.io/role: tainted_node
+        #tolerations:
+        #- key: dedicated
+        #operator: Equal
+        #value: devops
+        #effect: NoSchedule
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - containerPort: 80
+          name: http-server
+

@@ -1,0 +1,32 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: golang
+spec:
+  replicas: 1 # tells deployment to run 2 pods matching the template
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        name: golang
+    spec:
+      containers:
+      - name: golang
+        #image: golang:1.10.1-alpine
+        image: ubuntu
+        command: ["/bin/sh"]
+        args:
+        - /bin/sh
+        - -c
+        - touch /tmp/healthy; sleep 30; rm -rf /tmp/healthy; sleep 600
+        ports:
+        - containerPort: 80
+          name: tcp
+        livenessProbe:
+          exec:
+            command:
+            - cat
+            - /tmp/healthy
+          initialDelaySeconds: 5
+          periodSeconds: 5

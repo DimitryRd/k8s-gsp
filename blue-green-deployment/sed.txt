@@ -1,0 +1,7 @@
+cp /usr/share/nginx/html/* nginx-blue/
+cp /usr/share/nginx/html/* nginx-green/
+
+sed -i -e 's/Welcome to nginx!/Welcome to blue nginx!/g' nginx-blue/index.html
+sed -i -e 's/Welcome to nginx!/Welcome to green nginx!/g' nginx-green/index.html
+
+sed -i -e 's/Welcome to nginx!/Welcome to blue nginx!/g' /usr/share/nginx/html/index.html
